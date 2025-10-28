@@ -1,5 +1,7 @@
+import AuthGuardMain from "@/components/AuthGuardMain";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
+
 
 const CARDS = [
     {
@@ -38,7 +40,7 @@ const CARDS = [
     {
         title: "ผู้ดูแลระบบ",
         desc: "สิทธิ์ / บทบาท / ผู้ใช้",
-        href: "/main/create_admin",
+        href: "/main/admins",
         icon: (
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
@@ -53,6 +55,7 @@ const CARDS = [
 export default function MainPage() {
     return (
         <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-slate-100 text-slate-800">
+            <AuthGuardMain />
             <Navbar />
 
             <main className="mx-auto max-w-7xl px-4 py-10">

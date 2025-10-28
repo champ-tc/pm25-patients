@@ -16,13 +16,33 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
     if (!username || !password) {
       setError("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
       return;
     }
+
     setPending(true);
-    await new Promise((r) => setTimeout(r, 400));
-    router.push(next);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // สำคัญ: ให้ browser ส่ง/รับคุกกี้
+        credentials: "include",
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "เข้าสู่ระบบไม่สำเร็จ");
+      }
+
+      router.push(next);
+    } catch (err: any) {
+      setError(err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (

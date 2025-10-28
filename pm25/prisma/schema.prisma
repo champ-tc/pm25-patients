@@ -5,6 +5,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // ถ้า DB ไม่มี FK จริง แต่อยากให้ relation ใช้ได้ ลองเปิดบรรทัดนี้แทน
+  // relationMode = "prisma"
 }
 
 enum Role {
@@ -16,17 +18,17 @@ enum Role {
   unit
 }
 
-model Admin {
+model admin {
   id       Int    @id @default(autoincrement())
   username String @unique
-  password String // จะเก็บค่า hash (bcrypt)
+  password String
   role     Role
 
   pname String?
   fname String
   lname String
 
-  hospcode   String? // FK -> Hospcode.hospcode
+  hospcode   String? // FK -> hospcode.hospcode
   position   String?
   positionLv String?
   tel        String?
@@ -35,30 +37,34 @@ model Admin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hosp Hospcode? @relation(fields: [hospcode], references: [hospcode])
+  // relation ต้องอ้าง "ชื่อโมเดล" (ตัวพิมพ์เล็ก)
+  hosp hospcode? @relation(fields: [hospcode], references: [hospcode])
 
   @@index([hospcode])
+
+  @@map("admin")
 }
 
-model Hospcode {
-  hospcode            String  @id
-  hospcode_old        String?
-  name_th             String?
-  type                String?
-  type_organizations  String?
-  organizations       String?
-  county              String?
-  province_id         String?
-  province            String?
-  amphure_id          String?
-  amphure             String?
-  districts_id        String?
-  districts           String?
+model hospcode {
+  hospcode           String  @id
+  hospcode_old       String?
+  name_th            String?
+  type               String?
+  type_organizations String?
+  organizations      String?
+  county             String?
+  province_id        String?
+  province           String?
+  amphure_id         String?
+  amphure            String?
+  districts_id       String?
+  districts          String?
 
-  admins              Admin[]
+  admins admin[] // back relation มาที่ admin
 
   @@index([province])
   @@index([amphure])
   @@index([districts])
-}
 
+  @@map("hospcode")
+}

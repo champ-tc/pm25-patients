@@ -1,29 +1,27 @@
-// middleware.ts
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+// กันเฉพาะ /main และทุก path ใต้ /main
+export const config = { matcher: ["/main/:path*"] };
 
 export function middleware(req: NextRequest) {
-    // path ที่ต้องล็อกอินก่อนเข้า
-    const protectedPrefix = "/";
-
-    // อนุญาตหน้า /login ไม่ต้องเช็ค
-    if (req.nextUrl.pathname.startsWith("/login")) {
-        return NextResponse.next();
-    }
-
-    // หน้าอื่นๆ ให้ถือว่าเป็น protected zone
     const token = req.cookies.get("Authentication")?.value;
+
+    // ถ้าไม่มีคุกกี้เลย → ล้างคุกกี้ (เผื่อฝั่งบราวเซอร์ค้าง) แล้วเด้งไป login
     if (!token) {
-        const url = req.nextUrl.clone();
-        url.pathname = "/login";
-        url.searchParams.set("next", req.nextUrl.pathname); // กลับมาหน้าเดิมหลังล็อกอิน
-        return NextResponse.redirect(url);
+        const url = new URL("/login", req.url);
+        url.searchParams.set("next", req.nextUrl.pathname || "/main");
+
+        const res = NextResponse.redirect(url);
+        res.cookies.set("Authentication", "", {
+            httpOnly: true,
+            path: "/",
+            maxAge: 0,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+        });
+        return res;
     }
 
+    // มีคุกกี้ → ปล่อยผ่าน (ส่วน verify จะทำที่หน้า/คลientside ต่อ)
     return NextResponse.next();
 }
-
-// ระบุเส้นทางที่ middleware ทำงาน (ทั้งแอป ยกเว้นไฟล์ static)
-export const config = {
-    matcher: ["/((?!_next|favicon.ico|public).*)"],
-};

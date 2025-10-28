@@ -1,91 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
-type Row = {
-    hospcode: string;
-    hospcode_old: string | null;
-    name_th: string | null;
-    organizations: string | null;
-    province: string | null;
-    amphure: string | null;
-    districts: string | null;
-};
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const g = global as any;
+const prisma: PrismaClient = g.prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== "production") g.prisma = prisma;
 
 export async function GET(req: NextRequest) {
+  try {
     const { searchParams } = new URL(req.url);
-    const qRaw = (searchParams.get("q") || "").trim();
-    if (!qRaw) return NextResponse.json({ data: [] });
+    const q = (searchParams.get("q") || "").trim();
+    if (!q) return NextResponse.json({ data: [], total: 0, shown: 0 }, { status: 200 });
 
-    const tokens = qRaw.split(/\s+/).filter(Boolean);
+    const take = q.length === 1 ? 120 : q.length === 2 ? 100 : 60;
 
-    // -------- 1) ORM where: AND ของทุก token, แต่ละ token OR ทุกคอลัมน์
-    const col = ["hospcode", "hospcode_old", "name_th", "organizations", "province", "amphure", "districts"] as const;
-    const orsForToken = (t: string) =>
-        col.map((c) => ({ [c]: { contains: t, mode: "insensitive" as const } })) as Prisma.HospcodeWhereInput[];
+    // ✅ กำหนด type ตรงๆ และไม่ใช้ `as const`
+    const where: Prisma.hospcodeWhereInput = {
+      OR: [
+        { hospcode: { contains: q, mode: "insensitive" } },
+        { hospcode_old: { contains: q, mode: "insensitive" } },
+        { name_th: { contains: q, mode: "insensitive" } },
+        { organizations: { contains: q, mode: "insensitive" } },
+        { province: { contains: q, mode: "insensitive" } },
+        { amphure: { contains: q, mode: "insensitive" } },
+        { districts: { contains: q, mode: "insensitive" } },
+        { county: { contains: q, mode: "insensitive" } },
+      ],
+    };
 
-    const whereAND: Prisma.HospcodeWhereInput = { AND: tokens.map((t) => ({ OR: orsForToken(t) })) };
-    const whereOR: Prisma.HospcodeWhereInput = { OR: orsForToken(qRaw) };
+    const [total, data] = await Promise.all([
+      prisma.hospcode.count({ where }),
+      prisma.hospcode.findMany({
+        where,
+        select: {
+          hospcode: true,
+          hospcode_old: true,
+          name_th: true,
+          organizations: true,
+          province: true,
+          amphure: true,
+          districts: true,
+        },
+        // ถ้า TS ฟ้อง type ที่ distinct ให้ใช้วิธี A หรือ B ด้านล่าง
+        distinct: ["hospcode"],
+        orderBy: [{ name_th: "asc" }, { organizations: "asc" }, { hospcode_old: "asc" }],
+        take,
+      }),
+    ]);
 
-    // helper ORM search
-    async function searchORM(where: Prisma.HospcodeWhereInput) {
-        try {
-            return await prisma.hospcode.findMany({
-                where,
-                select: {
-                    hospcode: true,
-                    hospcode_old: true,
-                    name_th: true,
-                    organizations: true,
-                    province: true,
-                    amphure: true,
-                    districts: true,
-                },
-                take: 50,
-                orderBy: [{ name_th: "asc" }, { hospcode: "asc" }],
-            });
-        } catch {
-            return [] as Row[];
-        }
-    }
-
-    // -------- 2) RAW fallback: ลองทั้ง "Hospcode" (Camel) และ hospcode (lower)
-    const likeAny = `%${qRaw}%`;
-    const starts = `${qRaw}%`;
-
-    async function searchRaw(tableName: '"Hospcode"' | "hospcode") {
-        try {
-            return await prisma.$queryRaw<Row[]>(Prisma.sql`
-        SELECT
-            hospcode,
-            hospcode_old::text AS hospcode_old,
-            name_th,
-            organizations,
-            province,
-            amphure,
-            districts
-        FROM ${Prisma.raw(tableName)}
-        WHERE
-            hospcode ILIKE ${starts}
-            OR hospcode_old::text ILIKE ${starts}
-            OR name_th ILIKE ${likeAny}
-            OR organizations ILIKE ${likeAny}
-            OR province ILIKE ${likeAny}
-            OR amphure ILIKE ${likeAny}
-            OR districts ILIKE ${likeAny}
-        ORDER BY name_th NULLS LAST, hospcode
-        LIMIT 50
-    `);
-        } catch {
-            return [] as Row[];
-        }
-    }
-
-    // ลอง ORM (AND) → ORM (OR) → RAW ("Hospcode") → RAW (hospcode)
-    let data: Row[] = await searchORM(whereAND);
-    if (data.length === 0) data = await searchORM(whereOR);
-    if (data.length === 0) data = await searchRaw('"Hospcode"');
-    if (data.length === 0) data = await searchRaw("hospcode");
-
-    return NextResponse.json({ data });
+    return NextResponse.json({ data, total, shown: data.length }, { status: 200 });
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") console.error("[api/hospcodes] error:", e);
+    return NextResponse.json({ data: [], total: 0, shown: 0 }, { status: 200 });
+  }
 }

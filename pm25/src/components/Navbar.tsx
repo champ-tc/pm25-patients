@@ -1,12 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+
+const NAV = [
+    { label: "หน้าแรก", href: "/main" },
+    { label: "แดชบอร์ด", href: "/dashboard" },
+    { label: "ผู้ใช้", href: "/admin/users" },
+];
 
 export default function Navbar() {
     const pathname = usePathname();
+    const router = useRouter();
     const [open, setOpen] = useState(false);
+
+    // ✅ ฟังก์ชันออกจากระบบ
+    const handleLogout = async () => {
+        try {
+            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        } catch (e) {
+            console.error("logout error:", e);
+        } finally {
+            router.push("/");
+        }
+    };
 
     return (
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md">
@@ -24,14 +42,27 @@ export default function Navbar() {
                     </div>
                 </Link>
 
-                {/* Actions */}
-                <div className="hidden md:flex items-center gap-3">
-                    <Link
-                        href="/"
+                {/* Desktop Menu */}
+                <div className="hidden md:flex items-center gap-6">
+                    {NAV.map((m) => {
+                        const active = pathname.startsWith(m.href);
+                        return (
+                            <Link
+                                key={m.href}
+                                href={m.href}
+                                className={`text-sm font-medium ${active ? "text-indigo-600" : "text-slate-700 hover:text-indigo-600"}`}
+                            >
+                                {m.label}
+                            </Link>
+                        );
+                    })}
+
+                    <button
+                        onClick={handleLogout}
                         className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
                     >
                         ออกจากระบบ
-                    </Link>
+                    </button>
                 </div>
 
                 {/* Mobile toggler */}
@@ -56,7 +87,7 @@ export default function Navbar() {
                 </button>
             </div>
 
-            {/* Mobile sheet */}
+            {/* Mobile menu */}
             {open && (
                 <div className="md:hidden border-t border-slate-200 bg-white">
                     <nav className="mx-auto max-w-7xl px-4 py-3 space-y-1">
@@ -67,23 +98,24 @@ export default function Navbar() {
                                     key={m.href}
                                     href={m.href}
                                     onClick={() => setOpen(false)}
-                                    className={`block rounded-lg px-3 py-2 text-sm ${active
-                                            ? "bg-indigo-50 text-indigo-700"
-                                            : "text-slate-700 hover:bg-slate-50"
+                                    className={`block rounded-lg px-3 py-2 text-sm ${active ? "bg-indigo-50 text-indigo-700" : "text-slate-700 hover:bg-slate-50"
                                         }`}
                                 >
                                     {m.label}
                                 </Link>
                             );
                         })}
+
                         <div className="pt-2">
-                            <Link
-                                href="/"
-                                onClick={() => setOpen(false)}
-                                className="block rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                            <button
+                                onClick={() => {
+                                    setOpen(false);
+                                    handleLogout();
+                                }}
+                                className="block w-full text-left rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                             >
                                 ออกจากระบบ
-                            </Link>
+                            </button>
                         </div>
                     </nav>
                 </div>
