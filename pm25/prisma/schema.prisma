@@ -36,8 +36,8 @@ model admin {
   tel        String?
   email      String? @unique
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt       @map("updated_at")
 
   hosp hospcode? @relation(fields: [hospcode], references: [hospcode])
 
@@ -74,99 +74,126 @@ model hospcode {
 
 model midyear_population {
   id           Int    @id @default(autoincrement())
-  provinceCode String // รหัสจังหวัด
-  provinceName String // ชื่อจังหวัด
-  population   Int // จำนวนประชากรกลางปี
+  provinceCode String @map("province_code")
+  provinceName String @map("province_name")
+  population   Int
 
   @@index([provinceCode])
   @@map("midyear_population")
 }
 
 // =========================
-// 2) ตารางฝุ่นรายวัน
-// =========================
-
-model pm25_daily {
-  id             Int      @id @default(autoincrement())
-  date           DateTime @db.Date // วันที่ (เก็บเป็น DATE ใน Postgres)
-  stationIdNew   String? // station_id_new
-  province       String? // ชื่อจังหวัด
-  district       String? // อำเภอ
-  subdistrict    String? // ตำบล
-  pm25           Float? // ค่าฝุ่น PM2.5
-  regionalHealth String? // Regional Health
-
-  @@index([date])
-  @@index([province])
-  @@map("pm25_daily")
-}
-
-// =========================
-// 2.1) ตารางฝุ่นรายชั่วโมง
+// 2) ตารางฝุ่นรายวัน (สรุปแบบ max/min/avg เท่านั้น)
 // =========================
 
 model pm25_hourly {
-  id Int @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
+  stationId     String?   @map("station_id")
+  stationIdNew  String?   @map("station_id_new")
+  stationName   String?   @map("station_name")
+  stationType   String?   @map("station_type")
+  latitude      Float?
+  longitude     Float?
+  province      String?
+  district      String?
+  subdistrict   String?
 
-  date DateTime @db.Date // วันที่ (ไม่รวมเวลา)
-  hour Int // ชั่วโมง 0-23
+  // วัน+เวลา ในคอลัมน์เดียว และต้องเป็น timestamptz
+  air4Time      DateTime  @db.Timestamptz(3) @map("air4_time")
 
-  stationIdNew String? // station_id_new
-  stationName  String? // station_name
-  stationType  String? // station_type
-  latitude     Float? // latitude
-  longitude    Float? // longitude
+  pm25 Float?
+  pm10 Float?
+  o3   Float?
+  co   Float?
+  no2  Float?
+  so2  Float?
 
-  province    String? // จังหวัด
-  district    String? // อำเภอ
-  subdistrict String? // ตำบล
-
-  pm25 Float? // PM2.5
-  pm10 Float? // PM10
-  o3   Float? // O3
-  co   Float? // CO
-  no2  Float? // NO2
-  so2  Float? // SO2
-
-  @@index([date])
-  @@index([province])
+  @@unique([stationIdNew, air4Time])
   @@index([stationIdNew])
+  @@index([air4Time])
   @@map("pm25_hourly")
 }
+
+model pm25_daily {
+  id          Int      @id @default(autoincrement())
+  air4Date    DateTime @db.Date @map("air4_date")
+
+  stationId     String? @map("station_id")
+  stationIdNew  String? @map("station_id_new")
+  stationName   String? @map("station_name")
+  stationType   String? @map("station_type")
+  latitude      Float?
+  longitude     Float?
+  province      String?
+  district      String?
+  subdistrict   String?
+
+  // ===== Max / Min / Avg ของทุกตัวมลพิษ =====
+  pm25_max Float?
+  pm25_min Float?
+  pm25_avg Float?
+
+  pm10_max Float?
+  pm10_min Float?
+  pm10_avg Float?
+
+  o3_max  Float?
+  o3_min  Float?
+  o3_avg  Float?
+
+  co_max  Float?
+  co_min  Float?
+  co_avg  Float?
+
+  no2_max Float?
+  no2_min Float?
+  no2_avg Float?
+
+  so2_max Float?
+  so2_min Float?
+  so2_avg Float?
+
+  @@unique([stationIdNew, air4Date])
+  @@index([stationIdNew])
+  @@index([air4Date])
+  @@map("pm25_daily")
+}
+
+
 
 // =========================
 // 3) ตารางผู้ป่วยรายสัปดาห์ (disease)
 // =========================
 
 model disease_weekly {
-  id             Int      @id @default(autoincrement())
-  dateServ       DateTime @db.Date // Date Serv (วันที่บริการ / สัปดาห์)
-  changwatname   String? // ชื่อจังหวัด
-  typeDiag       String? // Typediag (เช่น OPD/IPD/ALL/รหัสอื่นๆ)
-  regionalHealth String? // Regional Health
-  cases          Int // จำนวนผู้ป่วย
-  year           Int // ปี
-  pm25           Float? // ค่า PM2.5 ประกอบการคำนวณ
-  rate           Float? // อัตราป่วย (เช่น ต่อแสนประชากร)
+  id           Int       @id @default(autoincrement())
+  provinceId   String?   @map("province_id")
+  provinceName String?   @map("province_name")
+  typeDiag     String?   @map("type_diag") // Typediag (OPD/IPD/ALL)
+  cases        Int
+  year         Int
+  week         Int?
+  month        Int?
+  createDate   DateTime? @default(now()) @map("create_date")
 
   @@index([year])
-  @@index([changwatname])
+  @@index([provinceId])
   @@map("disease_weekly")
 }
 
 // =========================
-// 4) ตารางค่าฝุ่นติดสะสม threshold 37
+// 4) ค่าฝุ่นติดสะสม threshold 37
 // =========================
 
 model pm25_cumulative37 {
   id                      Int      @id @default(autoincrement())
-  date                    DateTime @db.Date // วันที่
-  province                String // จังหวัด
-  pm25                    Float? // ค่าฝุ่นในวันนั้น
-  aboveThreshold          Boolean // เกิน threshold หรือไม่
-  consecutiveDays         Int // จำนวนวันที่มีข้อมูลต่อเนื่อง
-  consecutiveAboveMinDays Int // จำนวนวันที่ค่าฝุ่นเกินเกณฑ์ขั้นต่ำต่อเนื่อง
-  regionalHealth          String? // Regional Health
+  date                    DateTime @db.Date
+  province                String
+  pm25                    Float?
+  aboveThreshold          Boolean  @map("above_threshold")
+  consecutiveDays         Int      @map("consecutive_days")
+  consecutiveAboveMinDays Int      @map("consecutive_above_min_days")
+  regionalHealth          String?  @map("regional_health")
 
   @@index([date])
   @@index([province])
@@ -174,18 +201,18 @@ model pm25_cumulative37 {
 }
 
 // =========================
-// 5) ตารางค่าฝุ่นติดสะสม threshold 75
+// 5) ค่าฝุ่นติดสะสม threshold 75
 // =========================
 
 model pm25_cumulative75 {
   id                      Int      @id @default(autoincrement())
-  date                    DateTime @db.Date // วันที่
-  province                String // จังหวัด
-  pm25                    Float? // ค่าฝุ่นในวันนั้น
-  aboveThreshold          Boolean // เกิน threshold หรือไม่
-  consecutiveDays         Int // จำนวนวันที่มีข้อมูลต่อเนื่อง
-  consecutiveAboveMinDays Int // จำนวนวันที่ค่าฝุ่นเกินเกณฑ์ขั้นต่ำต่อเนื่อง
-  regionalHealth          String? // Regional Health
+  date                    DateTime @db.Date
+  province                String
+  pm25                    Float?
+  aboveThreshold          Boolean  @map("above_threshold")
+  consecutiveDays         Int      @map("consecutive_days")
+  consecutiveAboveMinDays Int      @map("consecutive_above_min_days")
+  regionalHealth          String?  @map("regional_health")
 
   @@index([date])
   @@index([province])
@@ -195,38 +222,56 @@ model pm25_cumulative75 {
 // =========================
 // 6) ตาราง patients
 // =========================
-// คอลัมน์:
-// id, date_serv, odpc, changwatname, ampurname, tambonname,
-// hospcode, hosname, sex, birth, age, nation, occupation,
-// typearea, diagcode, diagtype, diagname, typediag, create_date
 
 model patients {
   id Int @id @default(autoincrement())
 
-  dateServ     DateTime @map("date_serv") @db.Date // วันที่รับบริการ
-  odpc         String? // เขต/ศูนย์ (ถ้ามี)
-  changwatname String? // จังหวัด
-  ampurname    String? // อำเภอ
-  tambonname   String? // ตำบล
+  dateServ     DateTime  @map("date_serv") @db.Date
+  odpc         String?
+  changwatname String?
+  ampurname    String?
+  tambonname   String?
 
-  hospcode String? // รหัสหน่วยบริการ
-  hosname  String? // ชื่อหน่วยบริการ
+  hospcode String?
+  hosname  String?
 
-  sex        String? // เพศ
-  birth      DateTime? @db.Date // วันเกิด
-  age        Int? // อายุ (ปี)
-  nation     String? // สัญชาติ
-  occupation String? // อาชีพ
-  typearea   String? // Typearea
+  sex        String?
+  birth      DateTime? @db.Date
+  age        Int?
+  nation     String?
+  occupation String?
+  typearea   String?
 
-  diagcode String? // รหัสโรค
-  diagtype String? // ประเภท diag (หลัก/รอง ฯลฯ)
-  diagname String? // ชื่อโรค
-  typediag String? // ประเภทการวินิจฉัย (เช่น OPD/IPD)
+  diagcode String?
+  diagtype String?
+  diagname String?
+  typediag String?
 
-  createDate DateTime? @map("create_date") // วันที่บันทึกข้อมูล (วันเวลา)
+  createDate DateTime? @map("create_date")
 
   @@index([dateServ])
   @@index([hospcode])
   @@map("patients")
+}
+
+// =========================
+ // 7) ตารางสถานีตรวจวัดอากาศ (อิสระจาก hourly/daily)
+// =========================
+
+model stations {
+  id             Int     @id @default(autoincrement())
+  station_id     String?
+  station_id_new String?
+  station_name   String?
+  station_type   String?
+  latitude       Float?
+  longitude      Float?
+  province       String?
+  district       String?
+  subdistrict    String?
+
+  @@index([station_id])
+  @@index([station_id_new])
+  @@index([province])
+  @@map("stations")
 }
